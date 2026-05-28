@@ -39,6 +39,16 @@ public class GemRecommender : BaseSettingsPlugin<GemRecommenderSettings>
         @"^Uncut (Skill|Support|Spirit) Gem \(Level (\d+)\)$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    // Matches a trailing Roman-numeral tier suffix, e.g. " I", " II", " III", " IV"
+    private static readonly Regex TierSuffixRegex = new(
+        @" ([IVX]+)$", RegexOptions.Compiled);
+
+    private static string GetFamilyBaseName(string gemId)
+    {
+        var m = TierSuffixRegex.Match(gemId);
+        return m.Success ? gemId[..m.Index] : gemId;
+    }
+
     // ── ImGui overlay flags ───────────────────────────────────────────────────
     // NoInputs is intentionally absent so navigation arrows and combo can be clicked.
 
@@ -83,7 +93,12 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
             Settings,
             () => _build,
             () => _database,
-            () => _warnings);
+            () => _warnings,
+            ScanForDotBuildFiles,
+            ImportDotBuildFiles,
+            SaveBuildDefinition,
+            RenameBuild,
+            DuplicateBuild);
 
         return true;
     }
@@ -418,27 +433,30 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
         return slots;
     }
 
-    // Returns IDs suppressed because a higher-priority family member is still achievable.
+    // Returns IDs suppressed because a higher-tier family member is still achievable.
+    // Families are auto-detected: gems sharing the same base name (with trailing Roman
+    // numeral stripped) and the same targetSkill belong to the same family.
     private HashSet<string> BuildFamilySuppressedSet(PlayerState player, int charLevel)
     {
         var suppressed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (_build == null) return suppressed;
 
         var familyGroups = _build.Gems
-            .Where(g => !string.IsNullOrWhiteSpace(g.Family))
             .GroupBy(g => (
-                Family: g.Family!.ToLowerInvariant(),
-                Target: g.TargetSkill?.ToLowerInvariant() ?? ""));
+                Base:   GetFamilyBaseName(g.Id).ToLowerInvariant(),
+                Target: g.TargetSkill?.ToLowerInvariant() ?? ""))
+            .Where(g => g.Count() > 1); // single-member groups are not families
 
         foreach (var group in familyGroups)
         {
-            var inBuildOrder = group
-                .OrderBy(g => _build.Gems.IndexOf(g))
+            // Sort by RequiredGemLevel descending so the highest tier is checked first
+            var byTierDesc = group
+                .OrderByDescending(g => g.RequiredGemLevel ?? 1)
                 .ToList();
 
-            // First non-owned gem in the group that meets the char-level condition = active tier
+            // Pick the highest-tier non-owned gem that meets the char-level condition
             GemEntry? activeGem = null;
-            foreach (var gem in inBuildOrder)
+            foreach (var gem in byTierDesc)
             {
                 if (!RecommendationEngine.HasGem(player, gem.Id) &&
                     RecommendationEngine.MeetsCharLevelCondition(gem, charLevel))
@@ -450,8 +468,8 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
 
             if (activeGem == null) continue;
 
-            // All other non-owned siblings in the same group are suppressed
-            foreach (var gem in inBuildOrder)
+            // Suppress all other non-owned siblings
+            foreach (var gem in byTierDesc)
             {
                 if (!gem.Id.Equals(activeGem.Id, StringComparison.OrdinalIgnoreCase) &&
                     !RecommendationEngine.HasGem(player, gem.Id))
@@ -502,24 +520,23 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
             .FirstOrDefault(s => !buildSupports.Contains(s));
     }
 
-    // Finds a lower-priority (later in build.json) family member currently socketed
-    // into skillInfo that should be removed to make room for supportGem.
+    // Finds a lower-tier family member currently socketed into skillInfo that should
+    // be removed to make room for supportGem (which is a higher tier of the same family).
     private string? FindFamilyMemberToReplace(GemEntry supportGem, EquippedSkillGemInfo skillInfo)
     {
-        if (string.IsNullOrWhiteSpace(supportGem.Family) || _build == null) return null;
+        if (_build == null) return null;
 
-        var myIndex = _build.Gems.IndexOf(supportGem);
+        var myBase = GetFamilyBaseName(supportGem.Id);
+        var myTier = supportGem.RequiredGemLevel ?? 1;
 
         var lowerTierIds = _build.Gems
-            .Where(g => !string.IsNullOrWhiteSpace(g.Family)
-                     && g.Family.Equals(supportGem.Family, StringComparison.OrdinalIgnoreCase)
+            .Where(g => GetFamilyBaseName(g.Id).Equals(myBase, StringComparison.OrdinalIgnoreCase)
                      && (g.TargetSkill?.Equals(skillInfo.Name, StringComparison.OrdinalIgnoreCase) ?? false)
-                     && _build.Gems.IndexOf(g) > myIndex)
+                     && (g.RequiredGemLevel ?? 1) < myTier)
             .Select(g => g.Id)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        return skillInfo.CurrentSupports
-            .FirstOrDefault(s => lowerTierIds.Contains(s));
+        return skillInfo.CurrentSupports.FirstOrDefault(lowerTierIds.Contains);
     }
 
     // ── Inventory scan ────────────────────────────────────────────────────────
@@ -543,29 +560,49 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
         var result = new List<UncutGemInfo>();
         try
         {
-            var inventory = GameController?.IngameState?.IngameUi
-                ?.InventoryPanel[ExileCore2.Shared.Enums.InventoryIndex.PlayerInventory]
-                .VisibleInventoryItems;
+            var panel = GameController?.IngameState?.IngameUi
+                ?.InventoryPanel[ExileCore2.Shared.Enums.InventoryIndex.PlayerInventory];
+            if (panel == null) return result;
 
-            if (inventory == null) return result;
-
-            foreach (var item in inventory)
+            if (panel.IsVisible)
             {
-                var path = item?.Item?.Path;
-                if (path == null) continue;
-
-                var baseType = GameController?.Files?.BaseItemTypes?.Translate(path);
-                if (baseType == null) continue;
-
-                var match = UncutGemRegex.Match(baseType.BaseName ?? "");
-                if (!match.Success) continue;
-
-                result.Add(new UncutGemInfo
+                // UI is open — use VisibleInventoryItems (full entity access)
+                foreach (var item in panel.VisibleInventoryItems ?? [])
                 {
-                    Type      = match.Groups[1].Value.ToLowerInvariant(),
-                    Level     = int.Parse(match.Groups[2].Value),
-                    DropLevel = baseType.DropLevel,
-                });
+                    var path     = item?.Item?.Path;
+                    var baseType = path == null ? null : GameController?.Files?.BaseItemTypes?.Translate(path);
+                    if (baseType == null) continue;
+
+                    var match = UncutGemRegex.Match(baseType.BaseName ?? "");
+                    if (!match.Success) continue;
+
+                    result.Add(new UncutGemInfo
+                    {
+                        Type      = match.Groups[1].Value.ToLowerInvariant(),
+                        Level     = int.Parse(match.Groups[2].Value),
+                        DropLevel = baseType.DropLevel,
+                    });
+                }
+            }
+            else
+            {
+                // UI is closed — fall back to server inventory
+                foreach (var item in panel.ServerInventory?.Items ?? [])
+                {
+                    var path     = item?.Path;
+                    var baseType = path == null ? null : GameController?.Files?.BaseItemTypes?.Translate(path);
+                    if (baseType == null) continue;
+
+                    var match = UncutGemRegex.Match(baseType.BaseName ?? "");
+                    if (!match.Success) continue;
+
+                    result.Add(new UncutGemInfo
+                    {
+                        Type      = match.Groups[1].Value.ToLowerInvariant(),
+                        Level     = int.Parse(match.Groups[2].Value),
+                        DropLevel = baseType.DropLevel,
+                    });
+                }
             }
         }
         catch (Exception ex)
@@ -581,37 +618,50 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
         var result = new List<InventoryGemInfo>();
         try
         {
-            var inventory = GameController?.IngameState?.IngameUi
-                ?.InventoryPanel[ExileCore2.Shared.Enums.InventoryIndex.PlayerInventory]
-                .VisibleInventoryItems;
+            var panel = GameController?.IngameState?.IngameUi
+                ?.InventoryPanel[ExileCore2.Shared.Enums.InventoryIndex.PlayerInventory];
+            if (panel == null) return result;
 
-            if (inventory == null) return result;
-
-            foreach (var item in inventory)
+            if (panel.IsVisible)
             {
-                var path = item?.Item?.Path;
-                if (path == null) continue;
-
-                if (!path.Contains("Metadata/Items/Gems", StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                // Skip uncut gems — they are handled by ScanInventoryUncutGems
-                var baseType = GameController?.Files?.BaseItemTypes?.Translate(path);
-                if (baseType != null && UncutGemRegex.IsMatch(baseType.BaseName ?? ""))
-                    continue;
-
-                var name    = item?.Entity?.GetComponent<Base>()?.Name;
-                var level   = item?.Entity?.GetComponent<SkillGem>()?.Level ?? 0;
-                var sockets = item?.Entity?.GetComponent<Sockets>()?.NumberOfSockets ?? 0;
-
-                if (string.IsNullOrWhiteSpace(name)) continue;
-
-                result.Add(new InventoryGemInfo
+                // UI is open — use VisibleInventoryItems (full entity + component access)
+                foreach (var item in panel.VisibleInventoryItems ?? [])
                 {
-                    Name    = name,
-                    Level   = level,
-                    Sockets = sockets,
-                });
+                    var path = item?.Item?.Path;
+                    if (path == null) continue;
+                    if (!path.Contains("Metadata/Items/Gems", StringComparison.OrdinalIgnoreCase)) continue;
+
+                    var baseType = GameController?.Files?.BaseItemTypes?.Translate(path);
+                    if (baseType != null && UncutGemRegex.IsMatch(baseType.BaseName ?? "")) continue;
+
+                    var name    = item?.Entity?.GetComponent<Base>()?.Name;
+                    var level   = item?.Entity?.GetComponent<SkillGem>()?.Level ?? 0;
+                    var sockets = item?.Entity?.GetComponent<Sockets>()?.NumberOfSockets ?? 0;
+                    if (string.IsNullOrWhiteSpace(name)) continue;
+
+                    result.Add(new InventoryGemInfo { Name = name, Level = level, Sockets = sockets });
+                }
+            }
+            else
+            {
+                // UI is closed — fall back to server inventory
+                foreach (var item in panel.ServerInventory?.Items ?? [])
+                {
+                    var path = item?.Path;
+                    if (path == null) continue;
+                    if (!path.Contains("Metadata/Items/Gems", StringComparison.OrdinalIgnoreCase)) continue;
+
+                    var baseType = GameController?.Files?.BaseItemTypes?.Translate(path);
+                    if (baseType == null) continue;
+                    if (UncutGemRegex.IsMatch(baseType.BaseName ?? "")) continue;
+
+                    var name    = item?.GetComponent<Base>()?.Name ?? baseType.BaseName;
+                    var level   = item?.GetComponent<SkillGem>()?.Level ?? 0;
+                    var sockets = item?.GetComponent<Sockets>()?.NumberOfSockets ?? 0;
+                    if (string.IsNullOrWhiteSpace(name)) continue;
+
+                    result.Add(new InventoryGemInfo { Name = name, Level = level, Sockets = sockets });
+                }
             }
         }
         catch (Exception ex)
@@ -625,6 +675,10 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
 
     private void DrawInventoryHighlights()
     {
+        var panel = GameController?.IngameState?.IngameUi
+            ?.InventoryPanel[ExileCore2.Shared.Enums.InventoryIndex.PlayerInventory];
+        if (panel?.IsVisible != true) return;
+
         if (_recommendations.Count == 0) return;
 
         var current = _recommendations[_recommendationIndex];
@@ -634,9 +688,7 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
 
         try
         {
-            var inventory = GameController?.IngameState?.IngameUi
-                ?.InventoryPanel[ExileCore2.Shared.Enums.InventoryIndex.PlayerInventory]
-                ?.VisibleInventoryItems;
+            var inventory = panel.VisibleInventoryItems;
 
             if (inventory == null) return;
 
@@ -813,6 +865,276 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
     {
         LoadGemDatabase();
         LoadBuildsFolder();
+    }
+
+    // ── .build import ─────────────────────────────────────────────────────────
+
+    public List<(string Name, string Path)> ScanForDotBuildFiles(string folder)
+    {
+        try
+        {
+            var resolved = System.IO.Path.IsPathRooted(folder) ? folder : ResolvePath(folder);
+            if (!Directory.Exists(resolved)) return [];
+            return [.. Directory.GetFiles(resolved, "*.build")
+                .Select(f => (System.IO.Path.GetFileNameWithoutExtension(f), f))
+                .OrderBy(f => f.Item1)];
+        }
+        catch { return []; }
+    }
+
+    // Merges one or more .build files and writes a single .json build.
+    // Returns null on success, or an error string on failure.
+    public string? ImportDotBuildFiles(string[] paths)
+    {
+        try
+        {
+            if (paths.Length == 0) return "No files selected.";
+
+            var allDotBuilds = new List<DotBuildFile>();
+            foreach (var p in paths)
+            {
+                var db = JsonConvert.DeserializeObject<DotBuildFile>(File.ReadAllText(p));
+                if (db != null) allDotBuilds.Add(db);
+            }
+            if (allDotBuilds.Count == 0) return "No valid .build files found.";
+
+            // Merge skills: group by ID, take min of level_interval[0] and max of [1],
+            // union support_skills (by ID with same merge rule).
+            var mergedSkills = allDotBuilds
+                .SelectMany(b => b.Skills)
+                .GroupBy(s => s.Id, StringComparer.OrdinalIgnoreCase)
+                .Select(group =>
+                {
+                    var list = group.ToList();
+                    var mergedSupports = list
+                        .SelectMany(s => s.SupportSkills)
+                        .GroupBy(s => s.Id, StringComparer.OrdinalIgnoreCase)
+                        .Select(sg =>
+                        {
+                            var sl = sg.ToList();
+                            return new DotBuildSkill
+                            {
+                                Id            = sg.Key,
+                                LevelInterval =
+                                [
+                                    sl.Min(s => s.LevelInterval.Count > 0 ? s.LevelInterval[0] : 0),
+                                    sl.Max(s => s.LevelInterval.Count > 1 ? s.LevelInterval[1] : 100),
+                                ],
+                            };
+                        })
+                        .ToList();
+
+                    return new DotBuildSkill
+                    {
+                        Id            = group.Key,
+                        LevelInterval =
+                        [
+                            list.Min(s => s.LevelInterval.Count > 0 ? s.LevelInterval[0] : 0),
+                            list.Max(s => s.LevelInterval.Count > 1 ? s.LevelInterval[1] : 100),
+                        ],
+                        SupportSkills = mergedSupports,
+                    };
+                })
+                .ToList();
+
+            var gems = new List<GemEntry>();
+            foreach (var skill in mergedSkills)
+            {
+                var skillName = MetadataToBaseName(skill.Id);
+                if (string.IsNullOrWhiteSpace(skillName)) continue;
+
+                var minChar  = skill.LevelInterval.Count > 0 ? skill.LevelInterval[0] : 0;
+                int? maxChar = skill.LevelInterval.Count > 1 && skill.LevelInterval[1] < 100
+                               ? skill.LevelInterval[1] : null;
+
+                gems.Add(new GemEntry
+                {
+                    Id           = skillName,
+                    Type         = GetGemTypeFromDb(skillName, "skill"),
+                    MinCharLevel = minChar,
+                    MaxCharLevel = maxChar,
+                });
+
+                foreach (var sup in skill.SupportSkills)
+                {
+                    var supName = MetadataToBaseName(sup.Id);
+                    if (string.IsNullOrWhiteSpace(supName)) continue;
+
+                    var supMin  = sup.LevelInterval.Count > 0 ? sup.LevelInterval[0] : 0;
+                    int? supMax = sup.LevelInterval.Count > 1 && sup.LevelInterval[1] < 100
+                                  ? sup.LevelInterval[1] : null;
+
+                    gems.Add(new GemEntry
+                    {
+                        Id           = supName,
+                        Type         = "support",
+                        TargetSkill  = skillName,
+                        MinCharLevel = supMin,
+                        MaxCharLevel = supMax,
+                    });
+                }
+            }
+
+            if (gems.Count == 0)
+                return "No gems could be resolved — make sure the game files are loaded.";
+
+            string buildName;
+            if (paths.Length == 1)
+            {
+                var name = allDotBuilds[0].Name;
+                buildName = string.IsNullOrWhiteSpace(name)
+                    ? System.IO.Path.GetFileNameWithoutExtension(paths[0])
+                    : SanitizeFilename(name);
+            }
+            else
+            {
+                buildName = SanitizeFilename("merged_" + string.Join("_",
+                    paths.Take(3).Select(System.IO.Path.GetFileNameWithoutExtension)));
+            }
+
+            var folder     = ResolvePath(Settings.BuildsFolderPath.Value ?? "Builds");
+            Directory.CreateDirectory(folder);
+            var outputPath = System.IO.Path.Combine(folder, buildName + ".json");
+            var counter    = 1;
+            while (File.Exists(outputPath))
+                outputPath = System.IO.Path.Combine(folder, $"{buildName}_{counter++}.json");
+
+            var serSettings = new JsonSerializerSettings
+            {
+                Formatting        = Formatting.Indented,
+                NullValueHandling = NullValueHandling.Ignore,
+            };
+            File.WriteAllText(outputPath, JsonConvert.SerializeObject(
+                new BuildDefinition { Gems = gems }, serSettings));
+
+            LoadBuildsFolder();
+            var displayName          = System.IO.Path.GetFileNameWithoutExtension(outputPath);
+            Settings.SelectedBuild.Value = displayName;
+            _lastSelectedBuild           = displayName;
+            LoadSelectedBuild();
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return $"Import error: {ex.Message}";
+        }
+    }
+
+    // Returns the raw JSON of the currently selected build file, or null if none.
+    public string? GetCurrentBuildJson()
+    {
+        var selected = _buildFiles.FirstOrDefault(b =>
+            b.DisplayName == Settings.SelectedBuild.Value);
+        if (selected == default || !File.Exists(selected.FullPath)) return null;
+        try { return File.ReadAllText(selected.FullPath); }
+        catch { return null; }
+    }
+
+    // Deserializes the edited JSON, saves it back to disk, and reloads.
+    // Returns null on success, or an error string on failure.
+    public string? SaveBuildDefinition(BuildDefinition build)
+    {
+        try
+        {
+            var selected = _buildFiles.FirstOrDefault(b =>
+                b.DisplayName == Settings.SelectedBuild.Value);
+            if (selected == default) return "No build file selected.";
+
+            File.WriteAllText(selected.FullPath, JsonConvert.SerializeObject(build,
+                new JsonSerializerSettings
+                {
+                    Formatting        = Formatting.Indented,
+                    NullValueHandling = NullValueHandling.Ignore,
+                }));
+            LoadSelectedBuild();
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return $"Save error: {ex.Message}";
+        }
+    }
+
+    public string? RenameBuild(string newName)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(newName)) return "Name cannot be empty.";
+
+            var selected = _buildFiles.FirstOrDefault(b =>
+                b.DisplayName == Settings.SelectedBuild.Value);
+            if (selected == default) return "No build selected.";
+
+            var sanitized = SanitizeFilename(newName.Trim());
+            var folder    = Path.GetDirectoryName(selected.FullPath)!;
+            var newPath   = Path.Combine(folder, sanitized + ".json");
+
+            if (File.Exists(newPath) &&
+                !newPath.Equals(selected.FullPath, StringComparison.OrdinalIgnoreCase))
+                return $"A build named '{sanitized}' already exists.";
+
+            File.Move(selected.FullPath, newPath);
+            LoadBuildsFolder();
+            Settings.SelectedBuild.Value = sanitized;
+            _lastSelectedBuild           = sanitized;
+            LoadSelectedBuild();
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return $"Rename error: {ex.Message}";
+        }
+    }
+
+    public string? DuplicateBuild()
+    {
+        try
+        {
+            var selected = _buildFiles.FirstOrDefault(b =>
+                b.DisplayName == Settings.SelectedBuild.Value);
+            if (selected == default) return "No build selected.";
+
+            var timestamp = DateTime.Now.ToString("_yyyy_MM_dd_HHmmss");
+            var newName   = SanitizeFilename(selected.DisplayName + timestamp);
+            var folder    = Path.GetDirectoryName(selected.FullPath)!;
+            var newPath   = Path.Combine(folder, newName + ".json");
+
+            File.Copy(selected.FullPath, newPath);
+            LoadBuildsFolder();
+            Settings.SelectedBuild.Value = newName;
+            _lastSelectedBuild           = newName;
+            LoadSelectedBuild();
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return $"Duplicate error: {ex.Message}";
+        }
+    }
+
+    private string? MetadataToBaseName(string metadata)
+    {
+        try
+        {
+            var entry = GameController?.Files?.SkillGems?.EntriesList
+                .FirstOrDefault(e => string.Equals(
+                    e.ItemType?.Metadata, metadata, StringComparison.OrdinalIgnoreCase));
+            return entry?.ItemType?.BaseName;
+        }
+        catch { return null; }
+    }
+
+    private string GetGemTypeFromDb(string gemName, string defaultType)
+    {
+        var db = _database.FirstOrDefault(d =>
+            d.GemName.Equals(gemName, StringComparison.OrdinalIgnoreCase));
+        return db?.Type?.ToLowerInvariant() ?? defaultType;
+    }
+
+    private static string SanitizeFilename(string name)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        return string.Concat(name.Select(c => invalid.Contains(c) ? '_' : c)).Trim();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

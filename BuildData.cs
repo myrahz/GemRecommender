@@ -59,14 +59,6 @@ public class GemEntry
     public string? DisplayName { get; set; }
 
     /// <summary>
-    /// Groups mutually-exclusive tiered gems (e.g. "Elemental Armament").
-    /// Within a family+targetSkill group only the highest-priority non-owned
-    /// tier is ever recommended; lower tiers are suppressed.
-    /// </summary>
-    [JsonProperty("family")]
-    public string? Family { get; set; }
-
-    /// <summary>
     /// When true this gem is sorted above free-socket fills in the recommendation
     /// list, overriding the default rule that empty sockets are filled first.
     /// </summary>
@@ -119,6 +111,21 @@ public class GemDatabaseEntry
     public string Type    { get; set; } = "";
     public string GemName { get; set; } = "";
     public int    Level   { get; set; } = 1;
+}
+
+// ── .build import models ──────────────────────────────────────────────────────
+
+public class DotBuildFile
+{
+    [JsonProperty("name")]   public string            Name   { get; set; } = "";
+    [JsonProperty("skills")] public List<DotBuildSkill> Skills { get; set; } = [];
+}
+
+public class DotBuildSkill
+{
+    [JsonProperty("id")]             public string              Id            { get; set; } = "";
+    [JsonProperty("level_interval")] public List<int>           LevelInterval { get; set; } = [];
+    [JsonProperty("support_skills")] public List<DotBuildSkill> SupportSkills { get; set; } = [];
 }
 
 // ── Recommendation Result ─────────────────────────────────────────────────────
