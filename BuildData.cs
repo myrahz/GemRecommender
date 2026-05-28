@@ -94,6 +94,8 @@ public class PlayerState
     public List<InventoryGemInfo>     InventoryGems     { get; set; } = [];
     public int                        CharacterLevel     { get; set; }
     public UncutGemInfo?              UncutGem           { get; set; }
+    /// <summary>False when the Skill Panel rows could not be read (panel not open).</summary>
+    public bool                       SkillPanelOpen     { get; set; } = true;
 }
 
 public class UncutGemInfo

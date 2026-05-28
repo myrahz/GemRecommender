@@ -188,6 +188,12 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
             return;
         }
 
+        if (!player.SkillPanelOpen)
+        {
+            ImGui.TextColored(ColNone, "  Open the Skill Panel to update gem state.");
+            return;
+        }
+
         if (_recommendations.Count == 0)
         {
             ImGui.TextColored(ColNone, "  No recommendations.");
@@ -280,7 +286,7 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
         foreach (var buildGem in _build.Gems)
         {
             if (buildGem.ItemOnly) continue;  // obtained from items only; cannot be crafted
-            if (RecommendationEngine.HasGem(player, buildGem.Id)) continue;
+            if (IsGemSatisfied(player, buildGem)) continue;
             if (!RecommendationEngine.MeetsCharLevelCondition(buildGem, charLevel)) continue;
             if (suppressedByFamily.Contains(buildGem.Id)) continue;
 
@@ -435,6 +441,21 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
         return slots;
     }
 
+    // Support gems with a targetSkill are only "satisfied" when that specific support is
+    // actually slotted into the correct skill — not merely owned by name anywhere.
+    private static bool IsGemSatisfied(PlayerState player, GemEntry buildGem)
+    {
+        if (buildGem.Type.Equals("support", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(buildGem.TargetSkill))
+        {
+            var target = player.EquippedSkillGems
+                .FirstOrDefault(e => e.Name.Equals(buildGem.TargetSkill, StringComparison.OrdinalIgnoreCase));
+            return target?.CurrentSupports
+                .Any(s => s.Equals(buildGem.Id, StringComparison.OrdinalIgnoreCase)) ?? false;
+        }
+        return RecommendationEngine.HasGem(player, buildGem.Id);
+    }
+
     // Returns IDs suppressed because a higher-tier family member is still achievable.
     // Families are auto-detected: gems sharing the same base name (with trailing Roman
     // numeral stripped) and the same targetSkill belong to the same family.
@@ -460,7 +481,7 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
             GemEntry? activeGem = null;
             foreach (var gem in byTierDesc)
             {
-                if (!RecommendationEngine.HasGem(player, gem.Id) &&
+                if (!IsGemSatisfied(player, gem) &&
                     RecommendationEngine.MeetsCharLevelCondition(gem, charLevel))
                 {
                     activeGem = gem;
@@ -474,7 +495,7 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
             foreach (var gem in byTierDesc)
             {
                 if (!gem.Id.Equals(activeGem.Id, StringComparison.OrdinalIgnoreCase) &&
-                    !RecommendationEngine.HasGem(player, gem.Id))
+                    !IsGemSatisfied(player, gem))
                 {
                     suppressed.Add(gem.Id);
                 }
@@ -571,18 +592,17 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
                 // UI is open — use VisibleInventoryItems (full entity access)
                 foreach (var item in panel.VisibleInventoryItems ?? [])
                 {
-                    var path     = item?.Item?.Path;
-                    var baseType = path == null ? null : GameController?.Files?.BaseItemTypes?.Translate(path);
+                    var baseType = item?.Entity?.GetComponent<Base>()?.Info?.BaseItemTypeDat?.BaseName;
                     if (baseType == null) continue;
 
-                    var match = UncutGemRegex.Match(baseType.BaseName ?? "");
+                    var match = UncutGemRegex.Match(baseType);
                     if (!match.Success) continue;
 
                     result.Add(new UncutGemInfo
                     {
                         Type      = match.Groups[1].Value.ToLowerInvariant(),
                         Level     = int.Parse(match.Groups[2].Value),
-                        DropLevel = baseType.DropLevel,
+                        DropLevel = item?.Entity?.GetComponent<Base>()?.Info?.BaseItemTypeDat?.DropLevel ?? 0,
                     });
                 }
             }
@@ -591,18 +611,17 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
                 // UI is closed — fall back to server inventory
                 foreach (var item in panel.ServerInventory?.Items ?? [])
                 {
-                    var path     = item?.Path;
-                    var baseType = path == null ? null : GameController?.Files?.BaseItemTypes?.Translate(path);
+                    var baseType = item?.GetComponent<Base>()?.Info?.BaseItemTypeDat?.BaseName;
                     if (baseType == null) continue;
 
-                    var match = UncutGemRegex.Match(baseType.BaseName ?? "");
+                    var match = UncutGemRegex.Match(baseType);
                     if (!match.Success) continue;
 
                     result.Add(new UncutGemInfo
                     {
                         Type      = match.Groups[1].Value.ToLowerInvariant(),
                         Level     = int.Parse(match.Groups[2].Value),
-                        DropLevel = baseType.DropLevel,
+                        DropLevel = item?.GetComponent<Base>()?.Info?.BaseItemTypeDat?.DropLevel ?? 0,
                     });
                 }
             }
@@ -614,7 +633,7 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
         return result;
     }
 
-    // Scans inventory for already-created skill gems (path contains Metadata/Items/Gems).
+    // Scans inventory for already-created skill gems (path contains Metadata/Items/Gem).
     private List<InventoryGemInfo> ScanInventoryCreatedGems()
     {
         var result = new List<InventoryGemInfo>();
@@ -631,12 +650,12 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
                 {
                     var path = item?.Item?.Path;
                     if (path == null) continue;
-                    if (!path.Contains("Metadata/Items/Gems", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!path.Contains("Metadata/Items/Gem", StringComparison.OrdinalIgnoreCase)) continue;
 
-                    var baseType = GameController?.Files?.BaseItemTypes?.Translate(path);
-                    if (baseType != null && UncutGemRegex.IsMatch(baseType.BaseName ?? "")) continue;
+                    var baseType = item?.Entity?.GetComponent<Base>()?.Info?.BaseItemTypeDat?.BaseName;
+                    if (baseType != null && UncutGemRegex.IsMatch(baseType)) continue;
 
-                    var name    = item?.Entity?.GetComponent<Base>()?.Name;
+                    var name    = item?.Entity?.GetComponent<Base>()?.Name ?? baseType;
                     var level   = item?.Entity?.GetComponent<SkillGem>()?.Level ?? 0;
                     var sockets = item?.Entity?.GetComponent<Sockets>()?.NumberOfSockets ?? 0;
                     if (string.IsNullOrWhiteSpace(name)) continue;
@@ -651,13 +670,13 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
                 {
                     var path = item?.Path;
                     if (path == null) continue;
-                    if (!path.Contains("Metadata/Items/Gems", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!path.Contains("Metadata/Items/Gem", StringComparison.OrdinalIgnoreCase)) continue;
 
-                    var baseType = GameController?.Files?.BaseItemTypes?.Translate(path);
+                    var baseType = item?.GetComponent<Base>()?.Info?.BaseItemTypeDat?.BaseName;
                     if (baseType == null) continue;
-                    if (UncutGemRegex.IsMatch(baseType.BaseName ?? "")) continue;
+                    if (UncutGemRegex.IsMatch(baseType)) continue;
 
-                    var name    = item?.GetComponent<Base>()?.Name ?? baseType.BaseName;
+                    var name    = item?.GetComponent<Base>()?.Name ?? baseType;
                     var level   = item?.GetComponent<SkillGem>()?.Level ?? 0;
                     var sockets = item?.GetComponent<Sockets>()?.NumberOfSockets ?? 0;
                     if (string.IsNullOrWhiteSpace(name)) continue;
@@ -706,10 +725,10 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
                 if (current.UncutToUse != null)
                 {
                     // Match uncut gems by type+level via the regex.
-                    var baseType = GameController?.Files?.BaseItemTypes?.Translate(path);
+                    var baseType = item?.Entity?.GetComponent<Base>()?.Info?.BaseItemTypeDat?.BaseName;
                     if (baseType == null) continue;
 
-                    var match = UncutGemRegex.Match(baseType.BaseName ?? "");
+                    var match = UncutGemRegex.Match(baseType);
                     if (!match.Success) continue;
 
                     var type  = match.Groups[1].Value.ToLowerInvariant();
@@ -720,13 +739,13 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
                 else
                 {
                     // Match created gems by name+level via entity components.
-                    if (!path.Contains("Metadata/Items/Gems", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!path.Contains("Metadata/Items/Gem", StringComparison.OrdinalIgnoreCase)) continue;
 
-                    var baseType = GameController?.Files?.BaseItemTypes?.Translate(path);
-                    if (baseType != null && UncutGemRegex.IsMatch(baseType.BaseName ?? "")) continue;
+                    var baseType = item?.Entity?.GetComponent<Base>()?.Info?.BaseItemTypeDat?.BaseName;
+                    if (baseType != null && UncutGemRegex.IsMatch(baseType)) continue;
 
-                    var name  = item.Entity?.GetComponent<Base>()?.Name;
-                    var level = item.Entity?.GetComponent<SkillGem>()?.Level ?? 0;
+                    var name  = item?.Entity?.GetComponent<Base>()?.Name;
+                    var level = item?.Entity?.GetComponent<SkillGem>()?.Level ?? 0;
                     matches = name != null
                            && name.Equals(current.InventoryGem!.Name, StringComparison.OrdinalIgnoreCase)
                            && level == current.InventoryGem.Level;
@@ -851,7 +870,8 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
             foreach (var gem in _build.Gems)
             {
                 var dbEntry    = _database.FirstOrDefault(d =>
-                    d.GemName.Equals(gem.Id, StringComparison.OrdinalIgnoreCase));
+                    d.GemName.Equals(gem.Id,   StringComparison.OrdinalIgnoreCase) &&
+                    d.Type.Equals(gem.Type, StringComparison.OrdinalIgnoreCase));
                 var dbLevel    = dbEntry?.Level ?? -1;
                 var buildLevel = gem.RequiredGemLevel ?? 1;
                 gem.RequiredGemLevel = dbLevel > 0 ? Math.Max(buildLevel, dbLevel) : buildLevel;
@@ -1147,27 +1167,30 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
 
     private PlayerState BuildPlayerState()
     {
-        var skillGems    = ReadEquippedSkillGems();
+        var skillGems     = ReadEquippedSkillGems(); // null = Skill Panel not open
         var inventoryGems = ScanInventoryCreatedGems();
-        var owned        = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var owned         = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // Equipped gems: count as owned when at/above maxGemLevel (or when no cap is set)
-        foreach (var info in skillGems)
+        if (skillGems != null)
         {
-            var entry = _build?.Gems.FirstOrDefault(g =>
-                g.Id.Equals(info.Name, StringComparison.OrdinalIgnoreCase));
-
-            if (entry?.MaxGemLevel is int maxLvl && info.Level < maxLvl)
+            // Equipped gems: count as owned when at/above maxGemLevel (or when no cap is set)
+            foreach (var info in skillGems)
             {
-                // equipped but not yet at required level
-            }
-            else
-            {
-                owned.Add(info.Name);
-            }
+                var entry = _build?.Gems.FirstOrDefault(g =>
+                    g.Id.Equals(info.Name, StringComparison.OrdinalIgnoreCase));
 
-            foreach (var sup in info.CurrentSupports)
-                owned.Add(sup);
+                if (entry?.MaxGemLevel is int maxLvl && info.Level < maxLvl)
+                {
+                    // equipped but not yet at required level
+                }
+                else
+                {
+                    owned.Add(info.Name);
+                }
+
+                foreach (var sup in info.CurrentSupports)
+                    owned.Add(sup);
+            }
         }
 
         // Inventory gems: only count as owned when they exceed the maxGemLevel threshold.
@@ -1188,20 +1211,22 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
         return new PlayerState
         {
             OwnedGems         = [.. owned],
-            EquippedGems      = [.. skillGems.Select(g => g.Name)],
-            EquippedSkillGems = skillGems,
+            EquippedGems      = skillGems == null ? [] : [.. skillGems.Select(g => g.Name)],
+            EquippedSkillGems = skillGems ?? [],
             InventoryGems     = usableInventoryGems,
             CharacterLevel    = ReadCharacterLevel(),
+            SkillPanelOpen    = skillGems != null,
         };
     }
 
-    private List<EquippedSkillGemInfo> ReadEquippedSkillGems()
+    // Returns null when the Skill Panel is not open / rows are unavailable.
+    private List<EquippedSkillGemInfo>? ReadEquippedSkillGems()
     {
         var result = new List<EquippedSkillGemInfo>();
         try
         {
             var rows = GameController?.IngameState?.IngameUi?.SkillPanel?.Rows;
-            if (rows == null) return result;
+            if (rows == null) return null;
 
             foreach (var row in rows)
             {
