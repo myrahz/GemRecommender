@@ -1,0 +1,61 @@
+{
+  "gems": [
+    {
+      "id": "Lightning Arrow",
+      "type": "skill",
+      "requiredGemLevel": 1,
+      "maxGemLevel": 20
+    },
+    {
+      "id": "Herald of Thunder",
+      "type": "spirit",
+      "requiredGemLevel": 1,
+      "minCharLevel": 4
+    },
+    {
+      "id": "Pierce",
+      "type": "support",
+      "requiredGemLevel": 1,
+      "targetSkill": "Lightning Arrow"
+    },
+    {
+      "id": "Orb of Storms",
+      "type": "skill",
+      "requiredGemLevel": 4,
+      "minCharLevel": 8
+    },
+    {
+      "id": "Martial Tempo",
+      "type": "support",
+      "requiredGemLevel": 1,
+      "targetSkill": "Lightning Arrow",
+      "minCharLevel": 12
+    },
+    {
+      "id": "Galvanic Shards",
+      "type": "skill",
+      "requiredGemLevel": 1,
+      "minCharLevel": 16
+    },
+    {
+      "id": "Blindsight",
+      "type": "support",
+      "requiredGemLevel": 4,
+      "targetSkill": "Galvanic Shards",
+      "minCharLevel": 20
+    },
+    {
+      "id": "Fork",
+      "type": "support",
+      "requiredGemLevel": 4,
+      "targetSkill": "Lightning Arrow",
+      "minCharLevel": 24
+    },
+    {
+      "id": "Sniper's Mark",
+      "type": "spirit",
+      "requiredGemLevel": 4,
+      "minCharLevel": 28
+    }
+  ]
+}

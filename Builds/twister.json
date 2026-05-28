@@ -1,0 +1,230 @@
+{
+  "gems": [
+    {
+      "id": "Whirling Slash",
+      "type": "skill",
+      "maxGemLevel": 1
+    },
+    {
+      "id": "Twister",
+      "type": "skill"
+    },       
+    {
+      "id": "Frost Bomb",
+      "type": "skill"
+    },  
+	{
+      "id": "Fangs of Frost",
+      "type": "skill"
+    },   
+	{
+      "id": "War Banner",
+      "type": "spirit"
+    },	  
+    {
+      "id": "Retreat I",
+      "type": "support",
+      "targetSkill": "Twister"
+    },
+	{
+      "id": "Rage I",
+      "type": "support",
+      "targetSkill": "Whirling Slash"
+    },
+	{
+      "id": "Rapid Attacks I",
+      "type": "support",
+      "targetSkill": "Whirling Slash"
+    },
+	{
+      "id": "Ice-Tipped Arrows",
+      "type": "skill"
+    }, 
+	{
+      "id": "Barrage",
+      "type": "skill"
+    },
+	{
+      "id": "Elemental Armament I",
+      "type": "support",
+      "targetSkill": "Ice-Tipped Arrows"
+    },		
+	{
+      "id": "Frost Nexus",
+      "type": "support",
+      "targetSkill": "Twister"
+    },
+	{
+      "id": "Elemental Armament II",
+      "type": "support",
+      "targetSkill": "Twister"
+    },
+	{
+      "id": "Herald of Ice",
+      "type": "spirit"
+    },
+	{
+      "id": "Freezing Mark",
+      "type": "skill"
+    },
+	{
+      "id": "Elemental Armament II",
+      "type": "support",
+      "targetSkill": "Herald of Ice"
+    },
+	{
+      "id": "Elemental Armament II",
+      "type": "support",
+      "targetSkill": "Ice-Tipped Arrows"
+    },
+	{
+      "id": "Magnified Area I",
+      "type": "support",
+      "targetSkill": "Herald of Ice"
+    },
+	{
+      "id": "Elemental Armament II",
+      "type": "support",
+      "targetSkill": "Ice-Tipped Arrows"
+    },
+	{
+      "id": "Prolonged Duration I",
+      "type": "support",
+      "targetSkill": "Freezing Mark"
+    },
+	{
+      "id": "Rapid Casting I",
+      "type": "support",
+      "targetSkill": "Barrage"
+    },
+    {
+      "id": "Thunderous Leap",
+      "type": "skill"
+    },	
+	{
+      "id": "Rapid Attacks I",
+      "type": "support",
+      "targetSkill": "Thunderous Leap"
+    },
+	{
+      "id": "Retreat II",
+      "type": "support",
+      "targetSkill": "Twister"
+    },
+	{
+      "id": "Elemental Focus",
+      "type": "support",
+      "targetSkill": "Ice-Tipped Arrows"
+    },	
+	{
+      "id": "Magnified Area II",
+      "type": "support",
+      "targetSkill": "Ice-Tipped Arrows"
+    },{
+      "id": "Herald of Ice II",
+      "type": "support",
+      "targetSkill": "Ice-Tipped Arrows"
+    },
+	{
+      "id": "Prolonged Duration II",
+      "type": "support",
+      "targetSkill": " Freezing Mark"
+    },
+	{
+      "id": "Knockback",
+      "type": "support",
+      "targetSkill": "Whirling Slash"
+    },
+	{
+      "id": "Rage II",
+      "type": "support",
+      "targetSkill": "Whirling Slash"
+    },
+	{
+      "id": "Rapid Casting II",
+      "type": "support",
+      "targetSkill": "Barrage"
+    },
+	{
+      "id": "Rapid Attacks II",
+      "type": "support",
+      "targetSkill": "Whirling Slash"
+    },
+	{
+      "id": "Rapid Attacks II",
+      "type": "support",
+      "targetSkill": "Thunderous Leap"
+    },	
+	{
+      "id": "Charged Mark",
+      "type": "support",
+      "targetSkill": "Freezing Mark"
+    },
+	{
+      "id": "Retreat III",
+      "type": "support",
+      "targetSkill": "Twister"
+    },
+	{
+      "id": "Rage III",
+      "type": "support",
+      "targetSkill": "Whirling Slash"
+    },
+	{
+      "id": "Elemental Armament III",
+      "type": "support",
+      "targetSkill": "Twister"
+    },
+	{
+      "id": "Rapid Attacks III",
+      "type": "support",
+      "targetSkill": "Whirling Slash"
+    },
+	{
+      "id": "Projectile Acceleration III",
+      "type": "support",
+      "targetSkill": "Twister"
+    },	
+	{
+      "id": "Cold Attunement",
+      "type": "support",
+      "targetSkill": "Herald of Ice"
+    },
+	{
+      "id": "Cooldown Recovery II",
+      "type": "support",
+      "targetSkill": "Ice-Tipped Arrows"
+    },
+	{
+      "id": "Rapid Attacks III",
+      "type": "support",
+      "targetSkill": "Thunderous Leap"
+    },	
+    {
+      "id": "Galvanic Shards",
+      "type": "skill",
+      "requiredGemLevel": 1,
+      "minCharLevel": 16
+    },
+    {
+      "id": "Blindside",
+      "type": "support",
+      "requiredGemLevel": 4,
+      "targetSkill": "Galvanic Shards",
+      "minCharLevel": 20
+    },
+    {
+      "id": "Fork",
+      "type": "support",
+      "requiredGemLevel": 4,
+      "targetSkill": "Lightning Arrow",
+      "minCharLevel": 24
+    },
+    {
+      "id": "Sniper's Mark",
+      "type": "spirit",
+      "requiredGemLevel": 4,
+      "minCharLevel": 28
+    }
+  ]
+}
