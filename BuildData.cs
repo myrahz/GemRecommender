@@ -65,6 +65,13 @@ public class GemEntry
     [JsonProperty("prioritizeOverEmptySockets")]
     public bool PrioritizeOverEmptySockets { get; set; } = false;
 
+    /// <summary>
+    /// Set at runtime from the gem database — not persisted to JSON.
+    /// When true, the gem can only be obtained from items (not from uncut gems)
+    /// and is excluded from all craft/upgrade recommendations.
+    /// </summary>
+    public bool ItemOnly { get; set; } = false;
+
     public string Label => string.IsNullOrWhiteSpace(DisplayName) ? Id : DisplayName;
 }
 
@@ -108,9 +115,12 @@ public class InventoryGemInfo
 
 public class GemDatabaseEntry
 {
-    public string Type    { get; set; } = "";
-    public string GemName { get; set; } = "";
-    public int    Level   { get; set; } = 1;
+    public string Type      { get; set; } = "";
+    public string GemName   { get; set; } = "";
+    public int    Level     { get; set; } = 1;
+    public bool   IsLineage { get; set; } = false;
+    public bool   ItemOnly  { get; set; } = false;
+    public string Tags      { get; set; } = "";
 }
 
 // ── .build import models ──────────────────────────────────────────────────────

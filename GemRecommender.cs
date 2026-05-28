@@ -279,6 +279,7 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
 
         foreach (var buildGem in _build.Gems)
         {
+            if (buildGem.ItemOnly) continue;  // obtained from items only; cannot be crafted
             if (RecommendationEngine.HasGem(player, buildGem.Id)) continue;
             if (!RecommendationEngine.MeetsCharLevelCondition(buildGem, charLevel)) continue;
             if (suppressedByFamily.Contains(buildGem.Id)) continue;
@@ -369,6 +370,7 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
         // maxGemLevel is intentionally ignored here — it is a "done" threshold, not an upgrade cap.
         foreach (var buildGem in _build.Gems)
         {
+            if (buildGem.ItemOnly) continue;
             if (buildGem.Type.Equals("support", StringComparison.OrdinalIgnoreCase)) continue;
             if (!RecommendationEngine.HasGem(player, buildGem.Id)) continue; // not yet completed
             if (!RecommendationEngine.MeetsCharLevelCondition(buildGem, charLevel)) continue;
@@ -844,12 +846,16 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
                 return;
             }
 
-            // DB level is the acquisition floor; build level can demand higher, but not lower
+            // DB level is the acquisition floor; build level can demand higher, but not lower.
+            // Also propagate the ItemOnly flag from the database (runtime-only, not in JSON).
             foreach (var gem in _build.Gems)
             {
-                var dbLevel    = GemDatabase.GetMinLevel(_database, gem.Id);
+                var dbEntry    = _database.FirstOrDefault(d =>
+                    d.GemName.Equals(gem.Id, StringComparison.OrdinalIgnoreCase));
+                var dbLevel    = dbEntry?.Level ?? -1;
                 var buildLevel = gem.RequiredGemLevel ?? 1;
                 gem.RequiredGemLevel = dbLevel > 0 ? Math.Max(buildLevel, dbLevel) : buildLevel;
+                gem.ItemOnly         = dbEntry?.ItemOnly ?? false;
             }
 
             _warnings = GemDatabase.ValidateBuild(_build, _database);
@@ -1200,6 +1206,7 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
             foreach (var row in rows)
             {
                 if (row?.GemElement == null) continue;
+
 
                 var name    = row.GemElement.Entity?.GetComponent<Base>()?.Name;
                 var level   = row.GemElement.Entity?.GetComponent<SkillGem>()?.Level ?? 0;

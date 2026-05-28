@@ -46,36 +46,87 @@ public static class GemDatabase
             break;
         }
 
-        var firstRow = true;
+        var firstRow     = true;
+        var isLineageCol = -1;
+        var itemOnlyCol  = -1;
+        var tagsCol      = -1;
 
         foreach (var raw in lines)
         {
             var line = raw.Trim();
             if (string.IsNullOrWhiteSpace(line)) continue;
 
-            var parts = line.Split(delimiter);
+            var parts = SplitCsvLine(line, delimiter);
             if (parts.Length < 2) continue;
 
-            // Skip header row: detected when the level column is non-numeric
+            // Parse header row to locate named columns.
             if (firstRow)
             {
                 firstRow = false;
-                if (!int.TryParse(parts[1].Trim(), out _))
+                if (!int.TryParse(parts[1], out _))
+                {
+                    for (var h = 0; h < parts.Length; h++)
+                    {
+                        var hdr = parts[h];
+                        if (hdr.Equals("IsLineage", StringComparison.OrdinalIgnoreCase)) isLineageCol = h;
+                        else if (hdr.Equals("ItemOnly",  StringComparison.OrdinalIgnoreCase)) itemOnlyCol  = h;
+                        else if (hdr.Equals("Tags",      StringComparison.OrdinalIgnoreCase)) tagsCol      = h;
+                    }
                     continue;
+                }
             }
 
-            if (!int.TryParse(parts[1].Trim(), out var level))
+            if (!int.TryParse(parts[1], out var level))
                 continue;
+
+            static bool ParseBool(string[] p, int col)
+            {
+                if (col < 0 || col >= p.Length) return false;
+                var v = p[col].ToLowerInvariant();
+                return v is "true" or "1" or "yes";
+            }
 
             entries.Add(new GemDatabaseEntry
             {
-                Type    = gemType,
-                GemName = parts[0].Trim(),
-                Level   = level
+                Type      = gemType,
+                GemName   = parts[0],
+                Level     = level,
+                IsLineage = ParseBool(parts, isLineageCol),
+                ItemOnly  = ParseBool(parts, itemOnlyCol),
+                Tags      = tagsCol >= 0 && tagsCol < parts.Length ? parts[tagsCol] : "",
             });
         }
 
         return entries;
+    }
+
+    // ── CSV helpers ───────────────────────────────────────────────────────────
+
+    private static string[] SplitCsvLine(string line, char delimiter)
+    {
+        var fields  = new System.Collections.Generic.List<string>();
+        var current = new System.Text.StringBuilder();
+        var inQuotes = false;
+
+        foreach (var c in line)
+        {
+            if (c == '"')
+            {
+                inQuotes = !inQuotes;
+            }
+            else if (c == delimiter && !inQuotes)
+            {
+                fields.Add(current.ToString().Trim());
+                current.Clear();
+            }
+            else
+            {
+                current.Append(c);
+            }
+        }
+
+        fields.Add(current.ToString().Trim());
+        return fields.ToArray();
     }
 
     // ── Lookup helpers ────────────────────────────────────────────────────────

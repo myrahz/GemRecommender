@@ -88,6 +88,7 @@ public static class RecommendationEngine
         BuildDefinition build, PlayerState player, int uncutLevel)
         => build.Gems
             .Where(g => IsType(g, "skill"))
+            .Where(g => !g.ItemOnly)
             .Where(g => !HasGem(player, g.Id))
             .Where(g => IsValidByUncutLevel(g, uncutLevel))
             .Where(g => MeetsCharLevelCondition(g, player.CharacterLevel))
@@ -109,6 +110,7 @@ public static class RecommendationEngine
         BuildDefinition build, PlayerState player, int uncutLevel)
         => build.Gems
             .Where(g => IsType(g, "spirit"))
+            .Where(g => !g.ItemOnly)
             .Where(g => !HasGem(player, g.Id))
             .Where(g => IsValidByUncutLevel(g, uncutLevel))
             .Where(g => MeetsCharLevelCondition(g, player.CharacterLevel))

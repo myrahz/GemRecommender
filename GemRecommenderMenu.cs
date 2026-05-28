@@ -527,8 +527,24 @@ public class GemRecommenderMenu(
 
         foreach (var entry in database)
         {
-            ImGui.TextColored(TypeColor(entry.Type),
-                $"[{entry.Type[0]}]  {entry.GemName}  (min Lv.{entry.Level})");
+            ImGui.TextColored(TypeColor(entry.Type), $"[{entry.Type[0]}]");
+            ImGui.SameLine();
+            ImGui.Text($"{entry.GemName}  (min Lv.{entry.Level})");
+            if (entry.IsLineage)
+            {
+                ImGui.SameLine();
+                ImGui.TextColored(new Vector4(0.8f, 0.6f, 1.0f, 1f), "[Lineage]");
+            }
+            if (entry.ItemOnly)
+            {
+                ImGui.SameLine();
+                ImGui.TextColored(new Vector4(1.0f, 0.4f, 0.4f, 1f), "[ItemOnly]");
+            }
+            if (!string.IsNullOrEmpty(entry.Tags))
+            {
+                ImGui.SameLine();
+                ImGui.TextDisabled($"  {entry.Tags}");
+            }
         }
 
         if (database.Count == 0)
