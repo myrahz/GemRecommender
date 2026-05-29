@@ -43,6 +43,13 @@ public class GemRecommender : BaseSettingsPlugin<GemRecommenderSettings>
     private static readonly Regex TierSuffixRegex = new(
         @" ([IVX]+)$", RegexOptions.Compiled);
 
+    // Minimum character level required to use an uncut gem of the given tier (index = tier - 1).
+    private static readonly int[] UncutTierRequiredLevel =
+        [0, 3, 6, 10, 14, 18, 22, 26, 31, 36, 41, 46, 52, 58, 64, 66, 72, 78, 84, 90];
+
+    private static int RequiredLevelForTier(int tier)
+        => UncutTierRequiredLevel[Math.Clamp(tier - 1, 0, UncutTierRequiredLevel.Length - 1)];
+
     private static string GetFamilyBaseName(string gemId)
     {
         var m = TierSuffixRegex.Match(gemId);
@@ -272,7 +279,7 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
 
         var charLevel = player.CharacterLevel;
         var uncutPool = ScanInventoryUncutGems()
-            .Where(u => charLevel >= u.DropLevel)
+            .Where(u => charLevel >= RequiredLevelForTier(u.Level))
             .ToList();
 
         // Family suppression: for each family+targetSkill group, only the
@@ -570,9 +577,8 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
         {
             return [new UncutGemInfo
             {
-                Type      = Settings.DebugUncutGemType.Value ?? "skill",
-                Level     = Settings.DebugUncutGemLevel.Value,
-                DropLevel = 0,
+                Type  = Settings.DebugUncutGemType.Value ?? "skill",
+                Level = Settings.DebugUncutGemLevel.Value,
             }];
         }
         return ScanInventoryUncutGemsFromGame();
@@ -600,9 +606,8 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
 
                     result.Add(new UncutGemInfo
                     {
-                        Type      = match.Groups[1].Value.ToLowerInvariant(),
-                        Level     = int.Parse(match.Groups[2].Value),
-                        DropLevel = item?.Entity?.GetComponent<Base>()?.Info?.BaseItemTypeDat?.DropLevel ?? 0,
+                        Type  = match.Groups[1].Value.ToLowerInvariant(),
+                        Level = int.Parse(match.Groups[2].Value),
                     });
                 }
             }
@@ -619,9 +624,8 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
 
                     result.Add(new UncutGemInfo
                     {
-                        Type      = match.Groups[1].Value.ToLowerInvariant(),
-                        Level     = int.Parse(match.Groups[2].Value),
-                        DropLevel = item?.GetComponent<Base>()?.Info?.BaseItemTypeDat?.DropLevel ?? 0,
+                        Type  = match.Groups[1].Value.ToLowerInvariant(),
+                        Level = int.Parse(match.Groups[2].Value),
                     });
                 }
             }

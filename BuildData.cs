@@ -100,9 +100,8 @@ public class PlayerState
 
 public class UncutGemInfo
 {
-    public string Type      { get; set; } = "skill";
-    public int    Level     { get; set; } = 1;
-    public int    DropLevel { get; set; } = 0;
+    public string Type  { get; set; } = "skill";
+    public int    Level { get; set; } = 1;
 }
 
 // A created gem found in the player's inventory (not an uncut gem).
