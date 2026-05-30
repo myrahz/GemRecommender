@@ -1,0 +1,162 @@
+{
+  "gems": [
+    {
+      "id": "Explosive Grenade",
+      "type": "skill"
+    },
+    {
+      "id": "Multishot I",
+      "type": "support",
+      "targetSkill": "Explosive Grenade",
+      "maxCharLevel": 13
+    },
+    {
+      "id": "Elemental Armament I",
+      "type": "support",
+      "targetSkill": "Explosive Grenade",
+      "maxCharLevel": 13
+    },
+    {
+      "id": "Multishot II",
+      "type": "support",
+      "targetSkill": "Explosive Grenade",
+      "minCharLevel": 14
+    },
+    {
+      "id": "Elemental Armament II",
+      "type": "support",
+      "targetSkill": "Explosive Grenade",
+      "minCharLevel": 14
+    },
+    {
+      "id": "Deliberation",
+      "type": "support",
+      "targetSkill": "Explosive Grenade",
+      "minCharLevel": 14
+    },
+    {
+      "id": "Flash Grenade",
+      "type": "skill",
+      "minCharLevel": 6
+    },
+    {
+      "id": "Multishot I",
+      "type": "support",
+      "targetSkill": "Flash Grenade",
+      "minCharLevel": 6,
+      "maxCharLevel": 13
+    },
+    {
+      "id": "Multishot II",
+      "type": "support",
+      "targetSkill": "Flash Grenade",
+      "minCharLevel": 14
+    },
+    {
+      "id": "Stun II",
+      "type": "support",
+      "targetSkill": "Flash Grenade",
+      "minCharLevel": 14
+    },
+    {
+      "id": "Frost Bomb",
+      "type": "skill",
+      "maxCharLevel": 18
+    },
+    {
+      "id": "Attrition",
+      "type": "skill"
+    },
+    {
+      "id": "Pounce",
+      "type": "skill"
+    },
+    {
+      "id": "Gas Grenade",
+      "type": "skill",
+      "minCharLevel": 14
+    },
+    {
+      "id": "Multishot II",
+      "type": "support",
+      "targetSkill": "Gas Grenade",
+      "minCharLevel": 14
+    },
+    {
+      "id": "Elemental Armament II",
+      "type": "support",
+      "targetSkill": "Gas Grenade",
+      "minCharLevel": 14
+    },
+    {
+      "id": "Deliberation",
+      "type": "support",
+      "targetSkill": "Gas Grenade",
+      "minCharLevel": 14
+    },
+    {
+      "id": "Oil Grenade",
+      "type": "skill",
+      "minCharLevel": 31
+    },
+    {
+      "id": "Potent Exposure",
+      "type": "support",
+      "targetSkill": "Oil Grenade",
+      "minCharLevel": 31
+    },
+    {
+      "id": "Persistent Ground I",
+      "type": "support",
+      "targetSkill": "Oil Grenade",
+      "minCharLevel": 31,
+      "maxCharLevel": 51
+    },
+    {
+      "id": "Herald of Ash",
+      "type": "spirit",
+      "minCharLevel": 14
+    },
+    {
+      "id": "Cluster Grenade",
+      "type": "skill",
+      "minCharLevel": 52
+    },
+    {
+      "id": "Multishot II",
+      "type": "support",
+      "targetSkill": "Cluster Grenade",
+      "minCharLevel": 52
+    },
+    {
+      "id": "Cooldown Recovery II",
+      "type": "support",
+      "targetSkill": "Cluster Grenade",
+      "minCharLevel": 52
+    },
+    {
+      "id": "Short Fuse I",
+      "type": "support",
+      "targetSkill": "Cluster Grenade",
+      "minCharLevel": 52
+    },
+    {
+      "id": "Deliberation",
+      "type": "support",
+      "targetSkill": "Cluster Grenade",
+      "minCharLevel": 52
+    },
+    {
+      "id": "Persistent Ground III",
+      "type": "support",
+      "targetSkill": "Oil Grenade",
+      "minCharLevel": 52
+    },
+    {
+      "id": "Herbalism II",
+      "type": "support",
+      "targetSkill": "Herald of Ash",
+      "minCharLevel": 52
+    }
+  ]
+}

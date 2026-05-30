@@ -20,7 +20,9 @@ public class GemRecommenderSettings : ISettings
     public ColorNode DefaultTextColor { get; set; } = new(Color.FromArgb(220, 220, 220));
 
     // ── Data file paths ───────────────────────────────────────────────────────
-    public TextNode BuildsFolderPath   { get; set; } = new(@"Builds");
+    // Empty = ExileCore2's per-plugin config dir (…\config\GemRecommender).
+    // Relative paths resolve against it; absolute paths are used as-is.
+    public TextNode BuildsFolderPath   { get; set; } = new(@"");
     public ListNode SelectedBuild      { get; set; } = new();
     public TextNode SkillGemsCsvPath   { get; set; } = new(@"Data\skill_gems.csv");
     public TextNode SpiritGemsCsvPath  { get; set; } = new(@"Data\spirit_gems.csv");

@@ -33,7 +33,7 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3"   />
   </ItemGroup>
 
-  <!-- Copy data files to output so they ship with the plugin DLL -->
+  <!-- Copy data files and build JSONs to output so they ship with the plugin DLL -->
   <ItemGroup>
     <None Update="Data\skill_gems.csv">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -44,7 +44,7 @@
     <None Update="Data\support_gems.csv">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Update="Data\example_build.json">
+    <None Update="Builds\**\*.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

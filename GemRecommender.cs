@@ -802,11 +802,17 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
         _warnings   = [];
         _buildFiles = [];
 
-        var folder = ResolvePath(Settings.BuildsFolderPath.Value ?? "Builds");
+        var folder = ResolveBuildsFolder();
 
-        if (!Directory.Exists(folder))
+        try
         {
-            _loadError = $"Builds folder not found: {folder}";
+            Directory.CreateDirectory(folder);
+            SeedExampleBuilds(folder);
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"Builds folder not found: {folder} ({ex.Message})";
+            LogError($"[GemRecommender] {_loadError}");
             Settings.SelectedBuild.Values = [];
             return;
         }
@@ -817,7 +823,8 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
 
         if (jsonFiles.Length == 0)
         {
-            _loadError = "No .json files found in Builds folder.";
+            _loadError = $"No .json build files found in: {folder}";
+            LogError($"[GemRecommender] {_loadError}");
             Settings.SelectedBuild.Values = [];
             return;
         }
@@ -1283,6 +1290,40 @@ private static readonly Vector4 ColErr     = new(0.95f, 0.30f, 0.30f, 1f);
     {
         if (Path.IsPathRooted(path)) return path;
         return Path.Combine(DirectoryFullName, path);
+    }
+
+    // Build files are user data, so they live under ExileCore2's per-plugin config
+    // directory (…\config\GemRecommender). An empty setting means "use that folder";
+    // a relative setting is resolved against it; an absolute setting is used as-is.
+    private string ResolveBuildsFolder()
+    {
+        var configured = Settings.BuildsFolderPath.Value;
+        if (string.IsNullOrWhiteSpace(configured))
+            return ConfigDirectory;
+        if (Path.IsPathRooted(configured))
+            return configured;
+        return Path.Combine(ConfigDirectory, configured);
+    }
+
+    // Copy the example builds shipped next to the plugin DLL into the config folder
+    // on first run, so the user starts with working examples in the right place.
+    private void SeedExampleBuilds(string targetFolder)
+    {
+        if (Directory.GetFiles(targetFolder, "*.json").Length > 0) return;
+
+        var shipped = Path.Combine(DirectoryFullName, "Builds");
+        if (!Directory.Exists(shipped)) return;
+
+        foreach (var src in Directory.GetFiles(shipped, "*.json"))
+        {
+            var name = Path.GetFileName(src);
+            if (string.Equals(name, "example_build.json", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var dest = Path.Combine(targetFolder, name);
+            if (!File.Exists(dest))
+                File.Copy(src, dest);
+        }
     }
 
     private static string CapFirst(string s)

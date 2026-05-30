@@ -100,13 +100,18 @@ This allows optional upgrades even after the main build is complete.
 
 # Build Configuration
 
-Build files are stored in:
+Build files are stored in ExileCore2's per-plugin config folder:
 
 ```text
-Builds/
+<ExileCore2>\config\GemRecommender\
 ```
 
-You can change this location in the settings.
+On first run the example builds shipped with the plugin are copied here so you
+have working starting points. Drop your own `.json` builds in the same folder.
+
+You can override this location with the `BuildsFolderPath` setting (empty = the
+config folder above; a relative path resolves against it; an absolute path is
+used as-is).
 
 Select the active build through:
 
@@ -304,7 +309,7 @@ Supported delimiters:
 
 | Setting | Description |
 |---|---|
-| `BuildsFolderPath` | Folder containing build JSON files |
+| `BuildsFolderPath` | Folder containing build JSON files (empty = config folder) |
 | `SelectedBuild` | Active build |
 | `ReloadData` | Reload CSVs and build files |
 | `ColorBorder` | Inventory highlight border colour |
